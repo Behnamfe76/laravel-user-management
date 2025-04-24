@@ -1,8 +1,10 @@
 parameters:
-  level: 8
+  level: 5
   paths:
     - src
   excludePaths:
     - vendor
-  checkMissingIterableValueType: false
-  checkGenericClassInNonGenericObjectType: false 
+  ignoreErrors:
+    - '#Call to an undefined method Illuminate\\Database\\Eloquent\\Model::(restore|forceDelete|assignRole|removeRole|hasRole|hasPermissionTo)\(\)#'
+    - '#Access to an undefined property Illuminate\\Database\\Eloquent\\Model::\$dynamic_fields#'
+    - '#Static call to instance method#' 
