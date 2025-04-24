@@ -8,5 +8,19 @@ use Exception;
 
 class PermissionNotFoundException extends Exception
 {
-    // Custom exception for permission not found errors
-} 
+    /**
+     * Create a new PermissionNotFoundException instance.
+     *
+     * @param string|null $permissionName
+     * @param int $code
+     * @param \Throwable|null $previous
+     */
+    public function __construct(?string $permissionName = null, int $code = 0, \Throwable $previous = null)
+    {
+        $message = $permissionName 
+            ? "Permission '{$permissionName}' not found." 
+            : "Permission not found.";
+        
+        parent::__construct($message, $code, $previous);
+    }
+}
