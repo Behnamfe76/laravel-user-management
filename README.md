@@ -184,10 +184,22 @@ php artisan user-management:scan-attributes --path="app/Models"
 
 ## Testing
 
-Run the tests:
+This package uses Pest PHP for testing. Run the tests with:
 
 ```bash
 composer test
+```
+
+or directly with Pest:
+
+```bash
+./vendor/bin/pest
+```
+
+Group specific tests:
+
+```bash
+./vendor/bin/pest --group=user-manager
 ```
 
 ## Changelog
