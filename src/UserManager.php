@@ -4,16 +4,31 @@ declare(strict_types=1);
 
 namespace Fereydooni\LaravelUserManagement;
 
-use Fereydooni\LaravelUserManagement\Contracts\UserManagerInterface;
+use Fereydooni\LaravelUserManagement\Attributes\UserField;
+use Fereydooni\LaravelUserManagement\Attributes\UserRole;
+use Fereydooni\LaravelUserManagement\Exceptions\FieldNotFoundException;
+use Fereydooni\LaravelUserManagement\Exceptions\FieldValidationException;
+use Fereydooni\LaravelUserManagement\Exceptions\PermissionDeniedException;
+use Fereydooni\LaravelUserManagement\Exceptions\PermissionNotFoundException;
 use Fereydooni\LaravelUserManagement\Exceptions\RoleNotFoundException;
 use Fereydooni\LaravelUserManagement\Exceptions\UserFieldValidationException;
+use Fereydooni\LaravelUserManagement\Exceptions\UserNotFoundException;
+use Fereydooni\LaravelUserManagement\Contracts\UserManagerInterface;
+use Fereydooni\LaravelUserManagement\Models\Role;
+use Fereydooni\LaravelUserManagement\Models\Permission;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Schema;
 use ReflectionClass;
+use ReflectionProperty;
+use Spatie\Permission\Models\Role as SpatieRole;
+use Spatie\Permission\Models\Permission as SpatiePermission;
 
 class UserManager implements UserManagerInterface
 {
@@ -229,8 +244,9 @@ class UserManager implements UserManagerInterface
             throw new RoleNotFoundException("Role '{$roleName}' does not exist.");
         }
 
-        if (config('user-management.role_integration') === 'spatie' && class_exists('\Spatie\Permission\Models\Role')) {
-            $role = \Spatie\Permission\Models\Role::findByName($roleName);
+        if (config('user-management.role_integration') === 'spatie' && class_exists('\\Spatie\\Permission\\Models\\Role')) {
+            $roleClass = '\\Spatie\\Permission\\Models\\Role';
+            $role = $roleClass::findByName($roleName);
             $user->assignRole($role);
             return true;
         }
@@ -283,8 +299,9 @@ class UserManager implements UserManagerInterface
     public function removeRole(Model $user, string $roleName): bool
     {
         try {
-            if (config('user-management.role_integration') === 'spatie' && class_exists('\Spatie\Permission\Models\Role')) {
-                $role = \Spatie\Permission\Models\Role::findByName($roleName);
+            if (config('user-management.role_integration') === 'spatie' && class_exists('\\Spatie\\Permission\\Models\\Role')) {
+                $roleClass = '\\Spatie\\Permission\\Models\\Role';
+                $role = $roleClass::findByName($roleName);
                 $user->removeRole($role);
                 return true;
             }
@@ -345,9 +362,15 @@ class UserManager implements UserManagerInterface
      * @param Model $user
      * @param string $permissionName
      * @return bool
+     * @throws \Fereydooni\LaravelUserManagement\Exceptions\PermissionNotFoundException
      */
     public function hasPermission(Model $user, string $permissionName): bool
     {
+        // Check if permission exists
+        if (!$this->permissionExists($permissionName)) {
+            throw new \Fereydooni\LaravelUserManagement\Exceptions\PermissionNotFoundException("Permission '{$permissionName}' does not exist.");
+        }
+
         if (config('user-management.role_integration') === 'spatie') {
             return $user->hasPermissionTo($permissionName);
         }
@@ -598,14 +621,35 @@ class UserManager implements UserManagerInterface
             return true;
         }
 
-        if (config('user-management.role_integration') === 'spatie' && class_exists('\Spatie\Permission\Models\Role')) {
-            return \Spatie\Permission\Models\Role::where('name', $roleName)->exists();
+        if (config('user-management.role_integration') === 'spatie' && class_exists('\\Spatie\\Permission\\Models\\Role')) {
+            $roleClass = '\\Spatie\\Permission\\Models\\Role';
+            return $roleClass::where('name', $roleName)->exists();
         }
 
         // Check the roles table
         $rolesTable = config('user-management.tables.roles');
         return $this->app->make('db')->table($rolesTable)
             ->where('name', $roleName)
+            ->exists();
+    }
+
+    /**
+     * Check if a permission exists.
+     *
+     * @param string $permissionName
+     * @return bool
+     */
+    protected function permissionExists(string $permissionName): bool
+    {
+        if (config('user-management.role_integration') === 'spatie' && class_exists('\\Spatie\\Permission\\Models\\Permission')) {
+            $permissionClass = '\\Spatie\\Permission\\Models\\Permission';
+            return $permissionClass::where('name', $permissionName)->exists();
+        }
+
+        // Check the permissions table
+        $permissionsTable = config('user-management.tables.permissions');
+        return $this->app->make('db')->table($permissionsTable)
+            ->where('name', $permissionName)
             ->exists();
     }
 } 
