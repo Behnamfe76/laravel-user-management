@@ -3,10 +3,30 @@
 use Fereydooni\LaravelUserManagement\UserManager;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-
-uses(RefreshDatabase::class);
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
 
 beforeEach(function () {
+    // Create users table
+    if (!Schema::hasTable('users')) {
+        Schema::create('users', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password');
+            $table->rememberToken();
+            $table->timestamps();
+        });
+    }
+    
+    // Add dynamic_fields column if it doesn't exist
+    if (!Schema::hasColumn('users', 'dynamic_fields')) {
+        Schema::table('users', function (Blueprint $table) {
+            $table->json('dynamic_fields')->nullable();
+        });
+    }
+    
     // Set up user management config
     config([
         'user-management.user_model' => \stdClass::class,

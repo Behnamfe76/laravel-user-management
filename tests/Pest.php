@@ -11,8 +11,8 @@
 |
 */
 
-// Use Orchestra TestCase for all tests
-uses(Orchestra\Testbench\TestCase::class)->in('Feature', 'Unit', 'Pest');
+// Use our custom TestCase for all tests
+uses(Fereydooni\LaravelUserManagement\Tests\TestCase::class)->in('Feature', 'Unit', 'Pest');
 
 /*
 |--------------------------------------------------------------------------
