@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Fereydooni\LaravelUserManagement;
 
 use Fereydooni\LaravelUserManagement\Contracts\UserManagerInterface;
+use Fereydooni\LaravelUserManagement\Middleware\AuthorizeAttribute;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Permission\PermissionServiceProvider;
 
@@ -43,6 +44,13 @@ class UserManagementServiceProvider extends ServiceProvider
 
         // Load migrations
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+
+        // Register middleware globally
+        $this->app['router']->aliasMiddleware('authorize', AuthorizeAttribute::class);
+        
+        // Apply middleware to all routes
+        $this->app['router']->pushMiddlewareToGroup('web', AuthorizeAttribute::class);
+        $this->app['router']->pushMiddlewareToGroup('api', AuthorizeAttribute::class);
 
         // Register command to scan for attributes
         if ($this->app->runningInConsole()) {

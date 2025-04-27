@@ -30,6 +30,11 @@ class AuthorizeAttribute
         // Combine all attributes (class-level first, then method-level)
         $attributes = array_merge($classAttributes, $methodAttributes);
 
+        // If no attributes are found, allow access
+        if (empty($attributes)) {
+            return $next($request);
+        }
+
         foreach ($attributes as $attribute) {
             $instance = $attribute->newInstance();
             
@@ -48,8 +53,18 @@ class AuthorizeAttribute
                 }
             }
             
-            if (!$request->user()->hasPermissionThroughAttribute(
+            // Skip permission check if permission is 'all'
+            if ($instance->permission !== 'all' && !$request->user()->hasPermissionThroughAttribute(
                 $instance->permission,
+                null,
+                $instance->userType
+            )) {
+                abort(403, 'Unauthorized action.');
+            }
+
+            // Skip role check if role is 'all'
+            if ($instance->role !== 'all' && !$request->user()->hasPermissionThroughAttribute(
+                null,
                 $instance->role,
                 $instance->userType
             )) {
