@@ -19,8 +19,16 @@ class AuthorizeAttribute
         $controller = $route->getController();
         $method = $route->getActionMethod();
 
-        $reflection = new \ReflectionMethod($controller, $method);
-        $attributes = $reflection->getAttributes(Authorize::class);
+        // Check class-level attributes
+        $classReflection = new \ReflectionClass($controller);
+        $classAttributes = $classReflection->getAttributes(Authorize::class);
+        
+        // Check method-level attributes
+        $methodReflection = new \ReflectionMethod($controller, $method);
+        $methodAttributes = $methodReflection->getAttributes(Authorize::class);
+
+        // Combine all attributes (class-level first, then method-level)
+        $attributes = array_merge($classAttributes, $methodAttributes);
 
         foreach ($attributes as $attribute) {
             $instance = $attribute->newInstance();

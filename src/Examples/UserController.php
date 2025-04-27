@@ -6,10 +6,10 @@ use Fereydooni\LaravelUserManagement\Attributes\Authorize;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
+#[Authorize(permission: 'view-users')]
 class UserController
 {
     // Only users with 'view-users' permission can access this from any route type
-    #[Authorize(permission: 'view-users')]
     public function index(): JsonResponse
     {
         return response()->json(['message' => 'List of users']);
