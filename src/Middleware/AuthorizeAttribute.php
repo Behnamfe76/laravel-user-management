@@ -25,6 +25,21 @@ class AuthorizeAttribute
         foreach ($attributes as $attribute) {
             $instance = $attribute->newInstance();
             
+            // Check if route is blocked
+            if ($instance->routeType === 'block') {
+                abort(403, 'This route is currently blocked.');
+            }
+            
+            // Check route type
+            if ($instance->routeType !== 'all') {
+                $isApi = $request->expectsJson() || str_starts_with($request->path(), 'api/');
+                $currentRouteType = $isApi ? 'api' : 'web';
+                
+                if ($instance->routeType !== $currentRouteType) {
+                    abort(403, 'This route is not accessible from ' . $currentRouteType . ' context.');
+                }
+            }
+            
             if (!$request->user()->hasPermissionThroughAttribute(
                 $instance->permission,
                 $instance->role,
