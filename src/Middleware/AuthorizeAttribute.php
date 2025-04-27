@@ -40,6 +40,7 @@ class AuthorizeAttribute
                 // Log the error but continue with method check
                 \Illuminate\Support\Facades\Log::error('Failed to reflect controller class: ' . $e->getMessage());
                 $classAttributes = [];
+                abort(500, 'Internal Server Error');
             }
             
             // Check method-level attributes
@@ -50,6 +51,7 @@ class AuthorizeAttribute
                 // Log the error but continue with class attributes
                 \Illuminate\Support\Facades\Log::error('Failed to reflect method: ' . $e->getMessage());
                 $methodAttributes = [];
+                abort(500, 'Internal Server Error');
             }
 
             // Combine all attributes (class-level first, then method-level)
@@ -101,7 +103,9 @@ class AuthorizeAttribute
         } catch (\Exception $e) {
             // Log the error and allow the request to continue
             \Illuminate\Support\Facades\Log::error('Authorization middleware error: ' . $e->getMessage());
-            return $next($request);
+            $statusCode = $e instanceof \Illuminate\Auth\AuthenticationException ? 401 : 
+                         ($e instanceof \Illuminate\Auth\Access\AuthorizationException ? 403 : 500);
+            abort($statusCode, $e->getMessage());
         }
     }
 } 
