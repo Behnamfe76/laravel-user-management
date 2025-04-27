@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Fereydooni\LaravelUserManagement\Attributes\Authorize;
 use Symfony\Component\HttpFoundation\Response;
+use ReflectionException;
 
 class AuthorizeAttribute
 {
@@ -15,63 +16,92 @@ class AuthorizeAttribute
             return $next($request);
         }
 
-        $route = $request->route();
-        $controller = $route->getController();
-        $method = $route->getActionMethod();
-
-        // Check class-level attributes
-        $classReflection = new \ReflectionClass($controller);
-        $classAttributes = $classReflection->getAttributes(Authorize::class);
-        
-        // Check method-level attributes
-        $methodReflection = new \ReflectionMethod($controller, $method);
-        $methodAttributes = $methodReflection->getAttributes(Authorize::class);
-
-        // Combine all attributes (class-level first, then method-level)
-        $attributes = array_merge($classAttributes, $methodAttributes);
-
-        // If no attributes are found, allow access
-        if (empty($attributes)) {
-            return $next($request);
-        }
-
-        foreach ($attributes as $attribute) {
-            $instance = $attribute->newInstance();
+        try {
+            $route = $request->route();
             
-            // Check if route is blocked
-            if ($instance->routeType === 'block') {
-                abort(403, 'This route is currently blocked.');
+            // Skip if no route is found
+            if (!$route) {
+                return $next($request);
+            }
+
+            $controller = $route->getController();
+            $method = $route->getActionMethod();
+
+            // Skip if controller or method is not available
+            if (!$controller || !$method) {
+                return $next($request);
+            }
+
+            // Check class-level attributes
+            try {
+                $classReflection = new \ReflectionClass($controller);
+                $classAttributes = $classReflection->getAttributes(Authorize::class);
+            } catch (ReflectionException $e) {
+                // Log the error but continue with method check
+                \Illuminate\Support\Facades\Log::error('Failed to reflect controller class: ' . $e->getMessage());
+                $classAttributes = [];
             }
             
-            // Check route type
-            if ($instance->routeType !== 'all') {
-                $isApi = $request->expectsJson() || str_starts_with($request->path(), 'api/');
-                $currentRouteType = $isApi ? 'api' : 'web';
+            // Check method-level attributes
+            try {
+                $methodReflection = new \ReflectionMethod($controller, $method);
+                $methodAttributes = $methodReflection->getAttributes(Authorize::class);
+            } catch (ReflectionException $e) {
+                // Log the error but continue with class attributes
+                \Illuminate\Support\Facades\Log::error('Failed to reflect method: ' . $e->getMessage());
+                $methodAttributes = [];
+            }
+
+            // Combine all attributes (class-level first, then method-level)
+            $attributes = array_merge($classAttributes, $methodAttributes);
+
+            // If no attributes are found, allow access
+            if (empty($attributes)) {
+                return $next($request);
+            }
+
+            foreach ($attributes as $attribute) {
+                $instance = $attribute->newInstance();
                 
-                if ($instance->routeType !== $currentRouteType) {
-                    abort(403, 'This route is not accessible from ' . $currentRouteType . ' context.');
+                // Check if route is blocked
+                if ($instance->routeType === 'block') {
+                    abort(403, 'This route is currently blocked.');
+                }
+                
+                // Check route type
+                if ($instance->routeType !== 'all') {
+                    $isApi = $request->expectsJson() || str_starts_with($request->path(), 'api/');
+                    $currentRouteType = $isApi ? 'api' : 'web';
+                    
+                    if ($instance->routeType !== $currentRouteType) {
+                        abort(403, 'This route is not accessible from ' . $currentRouteType . ' context.');
+                    }
+                }
+                
+                // Skip permission check if permission is 'all'
+                if ($instance->permission !== 'all' && !$request->user()->hasPermissionThroughAttribute(
+                    $instance->permission,
+                    null,
+                    $instance->userType
+                )) {
+                    abort(403, 'Unauthorized action.');
+                }
+
+                // Skip role check if role is 'all'
+                if ($instance->role !== 'all' && !$request->user()->hasPermissionThroughAttribute(
+                    null,
+                    $instance->role,
+                    $instance->userType
+                )) {
+                    abort(403, 'Unauthorized action.');
                 }
             }
-            
-            // Skip permission check if permission is 'all'
-            if ($instance->permission !== 'all' && !$request->user()->hasPermissionThroughAttribute(
-                $instance->permission,
-                null,
-                $instance->userType
-            )) {
-                abort(403, 'Unauthorized action.');
-            }
 
-            // Skip role check if role is 'all'
-            if ($instance->role !== 'all' && !$request->user()->hasPermissionThroughAttribute(
-                null,
-                $instance->role,
-                $instance->userType
-            )) {
-                abort(403, 'Unauthorized action.');
-            }
+            return $next($request);
+        } catch (\Exception $e) {
+            // Log the error and allow the request to continue
+            \Illuminate\Support\Facades\Log::error('Authorization middleware error: ' . $e->getMessage());
+            return $next($request);
         }
-
-        return $next($request);
     }
 } 
