@@ -34,7 +34,7 @@ trait HasPermissions
     /**
      * Check if the user has permission through attributes
      */
-    public function hasPermissionThroughAttribute(string $permission, ?string $role = null, ?string $userType = null): bool
+    public function hasPermissionThroughAttribute(?string $permission = null, ?string $role = null, ?string $userType = null): bool
     {
         if (!config('user-management.attribute_based_authorization')) {
             return $this->hasPermissionTo($permission);
@@ -75,12 +75,17 @@ trait HasPermissions
             foreach ($attributes as $attribute) {
                 $instance = $attribute->newInstance();
                 
-                // Create a unique gate name based on all authorization parameters
-                $gateName = implode('|', array_filter([
-                    $instance->permission,
-                    $instance->role,
-                    $instance->userType
-                ]));
+                // If only permission is specified, use it as the gate name
+                if ($instance->permission !== null && $instance->role === null && $instance->userType === 'user') {
+                    $gateName = $instance->permission;
+                } else {
+                    // Create a unique gate name based on all authorization parameters
+                    $gateName = implode('|', array_filter([
+                        $instance->permission,
+                        $instance->role,
+                        $instance->userType !== 'user' ? $instance->userType : null
+                    ]));
+                }
 
                 Gate::define($gateName, function ($user) use ($instance) {
                     return $user->hasPermissionThroughAttribute(

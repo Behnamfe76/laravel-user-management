@@ -29,6 +29,7 @@ use ReflectionClass;
 use ReflectionProperty;
 use Spatie\Permission\Models\Role as SpatieRole;
 use Spatie\Permission\Models\Permission as SpatiePermission;
+use Illuminate\Support\Facades\Hash;
 
 class UserManager implements UserManagerInterface
 {
@@ -451,67 +452,67 @@ class UserManager implements UserManagerInterface
      */
     protected function validateDynamicFields(array $data, ?Model $user = null): void
     {
-        if (!config('user-management.enable_dynamic_fields', true)) {
-            return;
-        }
-
         $errors = [];
 
         foreach ($this->dynamicFields as $fieldName => $field) {
-            // Check required fields
             if ($field['required'] && !isset($data[$fieldName])) {
                 $errors[] = "The {$fieldName} field is required.";
-                continue;
             }
 
-            // Skip validation if field not present in data
-            if (!isset($data[$fieldName])) {
-                continue;
-            }
+            if (isset($data[$fieldName])) {
+                $value = $data[$fieldName];
+                $type = $field['type'];
 
-            // Validate field type
-            $value = $data[$fieldName];
-            switch ($field['type']) {
-                case 'string':
-                    if (!is_string($value)) {
-                        $errors[] = "The {$fieldName} field must be a string.";
-                    }
-                    break;
-                case 'integer':
-                    if (!is_numeric($value)) {
-                        $errors[] = "The {$fieldName} field must be an integer.";
-                    }
-                    break;
-                case 'boolean':
-                    if (!is_bool($value) && !in_array($value, [0, 1, '0', '1', true, false], true)) {
-                        $errors[] = "The {$fieldName} field must be a boolean.";
-                    }
-                    break;
-                case 'date':
-                    if (!strtotime($value)) {
-                        $errors[] = "The {$fieldName} field must be a valid date.";
-                    }
-                    break;
-            }
-
-            // Validate unique fields
-            if ($field['unique'] && isset($data[$fieldName])) {
-                $query = $this->whereField($fieldName, $data[$fieldName]);
-
-                // Exclude current user when updating
-                if ($user !== null) {
-                    $query->where('id', '!=', $user->getKey());
+                if (!$this->validateFieldType($value, $type)) {
+                    $errors[] = "The {$fieldName} field must be of type {$type}.";
                 }
 
-                if ($query->exists()) {
+                if ($field['unique'] && !$this->isFieldUnique($fieldName, $value, $user)) {
                     $errors[] = "The {$fieldName} field must be unique.";
                 }
             }
         }
 
         if (!empty($errors)) {
-            throw new UserFieldValidationException(implode(' ', $errors));
+            throw new UserFieldValidationException($errors);
         }
+    }
+
+    /**
+     * Validate a field's type.
+     *
+     * @param mixed $value
+     * @param string $type
+     * @return bool
+     */
+    protected function validateFieldType(mixed $value, string $type): bool
+    {
+        return match ($type) {
+            'string' => is_string($value),
+            'integer' => is_numeric($value),
+            'boolean' => is_bool($value) || in_array($value, [0, 1, '0', '1', true, false], true),
+            'date' => strtotime($value) !== false,
+            default => false,
+        };
+    }
+
+    /**
+     * Check if a field value is unique.
+     *
+     * @param string $fieldName
+     * @param mixed $value
+     * @param Model|null $user
+     * @return bool
+     */
+    protected function isFieldUnique(string $fieldName, mixed $value, ?Model $user = null): bool
+    {
+        $query = $this->whereField($fieldName, $value);
+
+        if ($user !== null) {
+            $query->where('id', '!=', $user->getKey());
+        }
+
+        return !$query->exists();
     }
 
     /**
@@ -651,5 +652,60 @@ class UserManager implements UserManagerInterface
         return $this->app->make('db')->table($permissionsTable)
             ->where('name', $permissionName)
             ->exists();
+    }
+
+    public function createUser(array $data): Model
+    {
+        $data['password'] = Hash::make($data['password']);
+        return $this->userModel::create($data);
+    }
+
+    public function updateUser(Model $user, array $data): Model
+    {
+        if (isset($data['password'])) {
+            $data['password'] = Hash::make($data['password']);
+        }
+        $user->update($data);
+        return $user;
+    }
+
+    public function deleteUser(Model $user): bool
+    {
+        return $user->delete();
+    }
+
+    public function setUserType(Model $user, string $type): Model
+    {
+        $user->user_type = $type;
+        $user->save();
+        return $user;
+    }
+
+    public function getUserType(Model $user): ?string
+    {
+        return $user->user_type;
+    }
+
+    public function removeUserType(Model $user): Model
+    {
+        $user->user_type = null;
+        $user->save();
+        return $user;
+    }
+
+    /**
+     * Check if a user has a specific user type.
+     *
+     * @param Model $user
+     * @param string|array $types
+     * @return bool
+     */
+    public function isUserType(Model $user, string|array $types): bool
+    {
+        if (is_string($types)) {
+            return $user->user_type === $types;
+        }
+
+        return in_array($user->user_type, $types);
     }
 } 

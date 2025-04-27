@@ -10,7 +10,9 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Fereydooni\\LaravelUserManagement\\Tests\\": "tests/"
+            "Fereydooni\\LaravelUserManagement\\Tests\\": "tests/",
+            "Fereydooni\\LaravelUserManagement\\Tests\\Models\\": "tests/Models/",
+            "Fereydooni\\LaravelUserManagement\\Tests\\Factories\\": "tests/Factories/"
         }
     },
     "authors": [
@@ -43,8 +45,10 @@
         }
     },
     "scripts": {
-        "test": "vendor/bin/pest"
+        "test": "vendor/bin/pest",
+        "analyse": "vendor/bin/phpstan analyse"
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "version": "1.0.0"
 }
