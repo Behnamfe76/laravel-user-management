@@ -1,223 +1,167 @@
-# Dynamic User Management for Laravel
+# Laravel User Management
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/fereydooni/laravel-user-management.svg)](https://packagist.org/packages/fereydooni/laravel-user-management)
-[![Total Downloads](https://img.shields.io/packagist/dt/fereydooni/laravel-user-management.svg)](https://packagist.org/packages/fereydooni/laravel-user-management)
-[![PHP Version](https://img.shields.io/packagist/php-v/fereydooni/laravel-user-management.svg)](https://packagist.org/packages/fereydooni/laravel-user-management)
-[![License](https://img.shields.io/github/license/fereydooni/laravel-user-management.svg)](LICENSE.md)
-
-A powerful, attribute-driven user management package for Laravel. Define user fields, roles, and permissions using PHP 8.1+ attributes.
+A comprehensive user management package for Laravel with Spatie's role-permission integration and attribute-based authorization.
 
 ## Features
 
-- Dynamic user field management via PHP attributes
-- Role and permission management
-- Support for custom fields stored in JSON or pivot tables
-- Configurable integration with existing applications
-- CLI command for scanning attributes in your models
-- Compatible with Laravel 10.x and PHP 8.1+
-
-## Requirements
-
-- PHP 8.1 or higher
-- Laravel 10.x
-- Composer
+- User management with authentication
+- Role and permission management using Spatie's package
+- Attribute-based authorization with support for:
+  - Permission-based authorization
+  - Role-based authorization
+  - User type-based authorization
+- Easy to use and configure
+- Extensible architecture
 
 ## Installation
-
-You can install the package via composer:
 
 ```bash
 composer require fereydooni/laravel-user-management
 ```
 
-Publish the configuration file and migrations:
+Publish the configuration file:
 
 ```bash
-php artisan vendor:publish --provider="Fereydooni\LaravelUserManagement\UserManagementServiceProvider"
-```
-
-Run the migrations:
-
-```bash
-php artisan migrate
+php artisan vendor:publish --tag=user-management-config
 ```
 
 ## Configuration
 
-After publishing the configuration, you can find it at `config/user-management.php`. Key options include:
+The package configuration can be found in `config/user-management.php`. Here you can customize:
 
-- `enable_dynamic_fields`: Enable/disable dynamic field functionality
-- `user_model`: Your application's user model
-- `role_integration`: Choose between 'custom' or 'spatie' for role management
-- `tables`: Configure custom table names if needed
-- `soft_deletes`: Enable/disable soft deletes for users
-- `cache`: Configure caching settings for roles and permissions
+- Default roles
+- Default permissions
+- User model
+- Attribute-based authorization settings
+- Default user type
 
 ## Usage
 
-### Defining User Fields and Roles
-
-Use PHP attributes to define custom fields and roles on your User model:
+### Basic User Management
 
 ```php
-<?php
+use Fereydooni\LaravelUserManagement\Traits\HasPermissions;
 
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
-use Fereydooni\LaravelUserManagement\Attributes\UserField;
-use Fereydooni\LaravelUserManagement\Attributes\UserRole;
-
-#[UserField(name: 'phone_number', type: 'string', required: true, unique: true)]
-#[UserField(name: 'address', type: 'string')]
-#[UserField(name: 'age', type: 'integer')]
-#[UserField(name: 'is_verified', type: 'boolean', default: false)]
-#[UserRole(name: 'admin', permissions: ['view_dashboard', 'manage_users', 'manage_content'])]
-#[UserRole(name: 'editor', permissions: ['view_dashboard', 'edit_content'])]
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasPermissions;
 
-    // ...
+    // Set custom user type (optional)
+    protected string $userType = 'admin';
 }
 ```
 
-### Managing Users
-
-Inject the UserManager to manage users in your controllers:
+### Role and Permission Management
 
 ```php
-<?php
+// Create a role
+$role = Role::create(['name' => 'writer']);
 
-namespace App\Http\Controllers;
+// Create a permission
+$permission = Permission::create(['name' => 'edit articles']);
 
-use Fereydooni\LaravelUserManagement\Contracts\UserManagerInterface;
-use Illuminate\Http\Request;
+// Assign permission to role
+$role->givePermissionTo($permission);
 
-class UserController extends Controller
+// Assign role to user
+$user->assignRole('writer');
+```
+
+### Attribute-Based Authorization
+
+You can use attributes to protect your controller methods with various combinations of permissions, roles, and user types:
+
+```php
+use Fereydooni\LaravelUserManagement\Attributes\Authorize;
+
+class ArticleController extends Controller
 {
-    public function __construct(
-        protected UserManagerInterface $userManager
-    ) {}
-
-    public function store(Request $request)
+    // Permission-based authorization
+    #[Authorize(permission: 'view-articles')]
+    public function index()
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|min:8',
-            'phone_number' => 'required|string|unique:users',
-            'age' => 'nullable|integer',
-            // other fields...
-        ]);
-        
-        $user = $this->userManager->create($validated);
-        
-        return response()->json($user, 201);
+        // Only users with 'view-articles' permission can access this
     }
 
-    public function update(Request $request, $id)
+    // Role-based authorization
+    #[Authorize(role: 'editor')]
+    public function create()
     {
-        $user = $this->userManager->find($id);
-        
-        if (!$user) {
-            return response()->json(['message' => 'User not found'], 404);
-        }
-        
-        $validated = $request->validate([
-            'name' => 'sometimes|string|max:255',
-            'email' => 'sometimes|email|unique:users,email,' . $id,
-            'phone_number' => 'sometimes|string|unique:users,phone_number,' . $id,
-            // other fields...
-        ]);
-        
-        $user = $this->userManager->update($user, $validated);
-        
-        return response()->json($user);
+        // Only users with 'editor' role can access this
     }
-    
-    public function assignRole($userId, $role)
+
+    // User type-based authorization
+    #[Authorize(userType: 'manager')]
+    public function manage()
     {
-        $user = $this->userManager->find($userId);
-        
-        if (!$user) {
-            return response()->json(['message' => 'User not found'], 404);
-        }
-        
-        $this->userManager->assignRole($user, $role);
-        
-        return response()->json(['message' => "Role {$role} assigned successfully"]);
+        // Only users of type 'manager' can access this
+    }
+
+    // Combined authorization
+    #[Authorize(permission: 'edit-articles', role: 'editor', userType: 'manager')]
+    public function edit()
+    {
+        // Only manager-type users with editor role and edit-articles permission can access this
     }
 }
 ```
 
-### Querying by Dynamic Fields
+### Middleware
 
-Use the `whereField` method to query users by their dynamic fields:
+Register the middleware in your `app/Http/Kernel.php`:
 
 ```php
-$users = $userManager->whereField('phone_number', '1234567890')->get();
-
-// Or for multiple conditions
-$activeAdults = $userManager->whereField('is_verified', true)
-    ->whereField('age', '>=', 18)
-    ->get();
+protected $routeMiddleware = [
+    // ...
+    'authorize' => \Fereydooni\LaravelUserManagement\Middleware\AuthorizeAttribute::class,
+];
 ```
 
-### Scanning for Attributes
+Then use it in your routes:
 
-You can scan your models for UserField and UserRole attributes using the included command:
-
-```bash
-# Scan the default user model
-php artisan user-management:scan-attributes
-
-# Scan a specific model
-php artisan user-management:scan-attributes --model="App\Models\Admin"
-
-# Scan all models in a directory
-php artisan user-management:scan-attributes --path="app/Models"
+```php
+Route::middleware('authorize')->group(function () {
+    Route::get('/articles', [ArticleController::class, 'index']);
+    Route::post('/articles', [ArticleController::class, 'store']);
+});
 ```
 
-## Testing
+## Examples
 
-This package uses Pest PHP for testing. Run the tests with:
+### Checking Permissions
 
-```bash
-composer test
+```php
+// Check if user has permission
+if ($user->hasPermissionTo('edit articles')) {
+    // User can edit articles
+}
+
+// Check if user has specific role
+if ($user->hasRole('editor')) {
+    // User has editor role
+}
+
+// Check if user is of specific type
+if ($user->getUserType() === 'manager') {
+    // User is of type manager
+}
+
+// Check combined authorization
+if ($user->hasPermissionThroughAttribute('edit-articles', 'editor', 'manager')) {
+    // User has all required permissions, roles, and type
+}
 ```
 
-or directly with Pest:
+### Registering Attribute Gates
 
-```bash
-./vendor/bin/pest
+```php
+// Register gates for attribute-based authorization
+User::registerAttributeGates();
 ```
-
-Group specific tests:
-
-```bash
-./vendor/bin/pest --group=user-manager
-```
-
-## Changelog
-
-Please see [CHANGELOG.md](CHANGELOG.md) for more information on what has changed recently.
-
-## Contributing
-
-Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## Security
 
-If you discover any security related issues, please email the author instead of using the issue tracker.
-
-## Credits
-
-- [Behnam Fereydooni](https://github.com/Behnamfe76)
-- [All Contributors](../../contributors)
+If you discover any security related issues, please email behnamfe76@gmail.com instead of using the issue tracker.
 
 ## License
 

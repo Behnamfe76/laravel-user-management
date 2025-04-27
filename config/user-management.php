@@ -3,6 +3,15 @@
 return [
     /*
     |--------------------------------------------------------------------------
+    | User Management Configuration
+    |--------------------------------------------------------------------------
+    |
+    | This file contains the configuration for the user management package.
+    |
+    */
+
+    /*
+    |--------------------------------------------------------------------------
     | Dynamic Fields
     |--------------------------------------------------------------------------
     |
@@ -20,7 +29,7 @@ return [
     | The model that should be used for user management.
     |
     */
-    'user_model' => App\Models\User::class,
+    'user_model' => \App\Models\User::class,
 
     /*
     |--------------------------------------------------------------------------
@@ -31,7 +40,7 @@ return [
     | Options: 'custom', 'spatie'
     |
     */
-    'role_integration' => 'custom',
+    'role_integration' => 'spatie',
 
     /*
     |--------------------------------------------------------------------------
@@ -75,4 +84,21 @@ return [
         'enabled' => true,
         'ttl' => 60 * 24, // 1 day in minutes
     ],
+
+    'default_roles' => [
+        'super-admin',
+        'admin',
+        'user',
+    ],
+
+    'default_permissions' => [
+        'view-users',
+        'create-users',
+        'edit-users',
+        'delete-users',
+        'assign-roles',
+        'manage-permissions',
+    ],
+
+    'attribute_based_authorization' => true,
 ]; 

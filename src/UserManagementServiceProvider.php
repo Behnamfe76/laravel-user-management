@@ -6,6 +6,7 @@ namespace Fereydooni\LaravelUserManagement;
 
 use Fereydooni\LaravelUserManagement\Contracts\UserManagerInterface;
 use Illuminate\Support\ServiceProvider;
+use Spatie\Permission\PermissionServiceProvider;
 
 class UserManagementServiceProvider extends ServiceProvider
 {
@@ -21,6 +22,8 @@ class UserManagementServiceProvider extends ServiceProvider
         $this->app->bind(UserManagerInterface::class, function ($app) {
             return new UserManager($app);
         });
+
+        $this->app->register(PermissionServiceProvider::class);
     }
 
     /**
